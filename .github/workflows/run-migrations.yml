@@ -1,0 +1,119 @@
+on:
+  workflow_call:
+    inputs:
+      targetEnv:
+        type: string
+        required: true
+        description: "The environment to deploy to"
+      targetSlackChannelId:
+        type: string
+        required: true
+        description: "The Slack channel ID to post to"
+      targetSlackThreadTs:
+        type: string
+        required: false
+        description: "The Slack thread ID to post to"
+    outputs:
+      ranMigrations:
+        description: "Whether or not migrations were run"
+        value: ${{ jobs.run_migrations.outputs.changed }}
+
+jobs:
+  run_migrations:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check_for_changes.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check for changes
+        id: check_for_changes
+        run: |
+          if git diff --quiet HEAD^ HEAD -- ./packages/api/migrations; then
+            echo "No changes in /packages/api/migrations"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Changes detected in /packages/api/migrations"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
+      - name: Update Slack about running migrations
+        if: ${{ inputs.targetSlackChannelId && inputs.targetSlackThreadTs && steps.check_for_changes.outputs.changed == 'true'}}
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          update-ts: ${{ inputs.targetSlackThreadTs }}
+          channel-id: "${{ inputs.targetSlackChannelId }}"
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "New migrations detected... running them"
+                  }
+                }
+              ]
+            }
+      - name: Update Slack about skipping migrations
+        if: ${{ inputs.targetSlackChannelId && inputs.targetSlackThreadTs && steps.check_for_changes.outputs.changed == 'false'}}
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          update-ts: ${{ inputs.targetSlackChannelId }}
+          channel-id: "${{ inputs.targetSlackChannelId }}"
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "No new migrations detected... skipping"
+                  }
+                }
+              ]
+            }
+
+      - name: Actually execute the migrations
+        if: steps.check_for_changes.outputs.changed == 'true'
+        run: |
+          echo "Running migrations..."
+          sleep 10
+          echo "Migrations complete."
+        working-directory: ./packages/api
+      - name: Update slack thread about migrations completion
+        if: steps.check_for_changes.outputs.changed == 'true' && inputs.targetSlackChannelId && inputs.targetSlackThreadTs
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          update-ts: ${{ inputs.targetSlackThreadTs }}
+          channel-id: "${{ inputs.targetSlackChannelId }}"
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Migrations complete!"
+                  }
+                }
+              ]
+            }
+      # in case of failure, update slack thread
+      - name: Update slack thread about migration failure
+        if: failure() && steps.check_for_changes.outputs.changed == 'true' && inputs.targetSlackChannelId
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          update-ts: ${{ inputs.targetSlackThreadTs }}
+          channel-id: "${{ inputs.targetSlackChannelId }}"
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Migrations failed!"
+                  }
+                }
+              ]
+            }
