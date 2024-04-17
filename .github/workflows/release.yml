@@ -1,0 +1,186 @@
+on:
+  workflow_call:
+    inputs:
+      targetEnv:
+        type: string
+        required: true
+        description: "The environment to deploy to"
+      targetSlackChannelId:
+        type: string
+        required: true
+        description: "The Slack channel ID to post to"
+    outputs:
+      ranMigrations:
+        description: "Whether or not migrations were run"
+        value: ${{ jobs.run_migrations.outputs.ranMigrations }}
+      slackThreadId:
+        description: "The thread ID of the slack message"
+        value: ${{ jobs.start_release.outputs.slackThreadId }}
+
+jobs:
+  start_release:
+    runs-on: ubuntu-latest
+    outputs:
+      slackThreadId: ${{ steps.slack.outputs.threadId }}
+    steps:
+      - name: Save job url
+        id: job_url
+        run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+      - name: Post to a Slack channel
+        id: slack
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          # Slack channel id, channel name, or user id to post message.
+          # See also: https://api.slack.com/methods/chat.postMessage#channels
+          # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
+          channel-id: "${{ inputs.targetSlackChannelId }}"
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "This is a plain text section block.",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Check the Action logs"
+                  },
+                  "accessory": {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "Logs",
+                      "emoji": true
+                    },
+                    "url": "${{ steps.job_url.outputs.JOB_URL }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  deploy_the_server:
+    runs-on: ubuntu-latest
+    needs: start_release
+    steps:
+      - name: Update slack that server is deploying
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          update-ts: ${{ needs.start_release.outputs.slackThreadId }}
+          channel-id: "${{ inputs.targetSlackChannelId }}"
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Deploying the server..."
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      - name: Deploy the server
+        run: echo "Deploying the server..."
+      - name: Update with success if server deploy
+        if: success()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          update-ts: ${{ needs.start_release.outputs.slackThreadId }}
+          channel-id: "${{ inputs.targetSlackChannelId }}"
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Server deployed!"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      - name: Update with failure if server deploy
+        if: failure()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          update-ts: ${{ needs.start_release.outputs.slackThreadId }}
+          channel-id: "${{ inputs.targetSlackChannelId }}"
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Server deployment failed!"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  run_migrations:
+    needs: start_release
+    uses: ./.github/workflows/run-migrations.yml
+    with:
+      targetEnv: ${{ inputs.targetEnv }}
+      targetSlackChannelId: ${{ inputs.targetSlackChannelId }}
+      targetSlackThreadTs: ${{ needs.start_release.outputs.slackThreadId }}
+
+  complete_release:
+    runs-on: ubuntu-latest
+    needs: [start_release, deploy_the_server, run_migrations]
+    steps:
+      - name: Successfull completion to slack
+        if: needs.deploy_the_server.result == 'success' && needs.run_migrations.result == 'success'
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          update-ts: ${{ needs.start_release.outputs.slackThreadId }}
+          channel-id: "${{ inputs.targetSlackChannelId }}"
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Release complete!"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      - name: Failed completion to slack
+        if: needs.deploy_the_server.result == 'failure' || needs.run_migrations.result == 'failure'
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          update-ts: ${{ needs.start_release.outputs.slackThreadId }}
+          channel-id: "${{ inputs.targetSlackChannelId }}"
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Release failed!"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

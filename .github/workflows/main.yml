@@ -2,7 +2,16 @@ on:
   pull_request:
     branches:
       - main
+  merge_group:
+    branches:
+      - main
 
 jobs:
   checks:
     uses: ./.github/workflows/checks.yml
+  release:
+    if: github.event_name == 'merge_group'
+    uses: ./.github/workflows/release.yml
+    with:
+      targetSlackChannelId: C06UUT9P3FU
+      targetEnv: production
