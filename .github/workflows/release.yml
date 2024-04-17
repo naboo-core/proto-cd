@@ -25,7 +25,7 @@ jobs:
     steps:
       - name: Save job url
         id: job_url
-        run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+        run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} >> $GITHUB_OUTPUT
       - name: Post to a Slack channel
         id: slack
         uses: slackapi/slack-github-action@v1.25.0
