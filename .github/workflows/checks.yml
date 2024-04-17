@@ -1,7 +1,5 @@
 on:
-  pull_request:
-    branches: ["main"]
-
+  workflow_call:
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -15,14 +13,3 @@ jobs:
         working-directory: ./packages/api
       - name: Check schema vs. production
         run: echo "Checking GraphQL schema vs. production... yes good."
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo building
-      - run: sleep 3
-      - run: echo built
-      - run: sleep 3
-      - run: echo zipped
-      - run: sleep 3
-      # echo commit sha
-      - run: echo pushing zip to s3/bucket/api/$GITHUB_SHA.zip
