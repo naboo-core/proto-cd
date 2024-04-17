@@ -1,0 +1,11 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "description": "dummy api",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo test are good"
+  },
+  "author": "",
+  "license": "MIT"
+}

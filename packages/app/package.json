@@ -1,0 +1,11 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "description": "dummy app",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo test are ok"
+  },
+  "author": "",
+  "license": "MIT"
+}
