@@ -10,8 +10,10 @@ jobs:
   checks:
     uses: ./.github/workflows/checks.yml
   release:
-    if: github.event_name == 'merge_group'
+    # if: github.event_name == 'merge_group'
     uses: ./.github/workflows/release.yml
     with:
       targetSlackChannelId: C06UUT9P3FU
       targetEnv: production
+    secrets:
+      slackBotToken: ${{ secrets.SLACK_BOT_TOKEN }}
