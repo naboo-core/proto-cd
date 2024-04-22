@@ -1,3 +1,7 @@
+name: main branch workflow
+# run name show author and pr number
+run-name: main branch workflow by @${{ github.actor }} PR#${{ github.event.number }}
+
 on:
   pull_request:
     branches:
