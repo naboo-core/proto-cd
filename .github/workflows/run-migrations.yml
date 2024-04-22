@@ -1,3 +1,5 @@
+name: Run migrations
+run-name: Run migrations on ${{ inputs.targetEnv }} by @${{ github.actor }}
 on:
   workflow_call:
     inputs:

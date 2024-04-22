@@ -1,3 +1,6 @@
+name: Release
+# run name show author and target env
+run-name: Release to ${{ inputs.targetEnv }} by @${{ github.actor }}
 on:
   workflow_call:
     inputs:
