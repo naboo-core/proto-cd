@@ -15,3 +15,5 @@ jobs:
     with:
       targetSlackChannelId: C06UUT9P3FU
       targetEnv: production
+    secrets:
+      slackBotToken: ${{ secrets.SLACK_BOT_TOKEN }}

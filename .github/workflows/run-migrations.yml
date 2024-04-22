@@ -11,12 +11,16 @@ on:
         description: "The Slack channel ID to post to"
       targetSlackThreadTs:
         type: string
-        required: false
+        required: true
         description: "The Slack thread ID to post to"
     outputs:
       ranMigrations:
         description: "Whether or not migrations were run"
         value: ${{ jobs.run_migrations.outputs.changed }}
+    secrets:
+      slackBotToken:
+        description: "The Slack bot token"
+        required: true
 
 jobs:
   run_migrations:
@@ -24,7 +28,9 @@ jobs:
     outputs:
       changed: ${{ steps.check_for_changes.outputs.changed }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - name: Check for changes
         id: check_for_changes
         run: |
@@ -37,41 +43,29 @@ jobs:
           fi
         shell: bash
       - name: Update Slack about running migrations
-        if: ${{ inputs.targetSlackChannelId && inputs.targetSlackThreadTs && steps.check_for_changes.outputs.changed == 'true'}}
-        uses: slackapi/slack-github-action@v1.25.0
+        if: steps.check_for_changes.outputs.changed == 'true'
+        uses: ArnaudRinquin/slack-github-action@thread_ts
         with:
-          update-ts: ${{ inputs.targetSlackThreadTs }}
+          thread-ts: ${{ inputs.targetSlackThreadTs }}
           channel-id: "${{ inputs.targetSlackChannelId }}"
           payload: |
             {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "New migrations detected... running them"
-                  }
-                }
-              ]
+              "text": "New migrations detected... running them 🔄"
             }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.slackBotToken }}
       - name: Update Slack about skipping migrations
-        if: ${{ inputs.targetSlackChannelId && inputs.targetSlackThreadTs && steps.check_for_changes.outputs.changed == 'false'}}
-        uses: slackapi/slack-github-action@v1.25.0
+        if: steps.check_for_changes.outputs.changed == 'false'
+        uses: ArnaudRinquin/slack-github-action@thread_ts
         with:
-          update-ts: ${{ inputs.targetSlackChannelId }}
+          thread-ts: ${{ inputs.targetSlackThreadTs }}
           channel-id: "${{ inputs.targetSlackChannelId }}"
           payload: |
             {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "No new migrations detected... skipping"
-                  }
-                }
-              ]
+              "text": "No new migrations detected... skipping ⏭️"
             }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.slackBotToken }}
 
       - name: Actually execute the migrations
         if: steps.check_for_changes.outputs.changed == 'true'
@@ -81,39 +75,27 @@ jobs:
           echo "Migrations complete."
         working-directory: ./packages/api
       - name: Update slack thread about migrations completion
-        if: steps.check_for_changes.outputs.changed == 'true' && inputs.targetSlackChannelId && inputs.targetSlackThreadTs
-        uses: slackapi/slack-github-action@v1.25.0
+        if: steps.check_for_changes.outputs.changed == 'true'
+        uses: ArnaudRinquin/slack-github-action@thread_ts
         with:
-          update-ts: ${{ inputs.targetSlackThreadTs }}
+          thread-ts: ${{ inputs.targetSlackThreadTs }}
           channel-id: "${{ inputs.targetSlackChannelId }}"
           payload: |
             {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "Migrations complete!"
-                  }
-                }
-              ]
+              "text": "Migrations complete! ✅"
             }
-      # in case of failure, update slack thread
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.slackBotToken }}
+
       - name: Update slack thread about migration failure
-        if: failure() && steps.check_for_changes.outputs.changed == 'true' && inputs.targetSlackChannelId
-        uses: slackapi/slack-github-action@v1.25.0
+        if: failure()
+        uses: ArnaudRinquin/slack-github-action@thread_ts
         with:
-          update-ts: ${{ inputs.targetSlackThreadTs }}
+          thread-ts: ${{ inputs.targetSlackThreadTs }}
           channel-id: "${{ inputs.targetSlackChannelId }}"
           payload: |
             {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "Migrations failed!"
-                  }
-                }
-              ]
+              "text": "Migrations failed! 🚩🚩🚩"
             }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.slackBotToken }}
